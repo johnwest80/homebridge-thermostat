@@ -1,10 +1,10 @@
 {
-  "name": "jw-homebridge-autelis",
-  "version": "0.0.51",
+  "name": "homebridge-autelis",
+  "version": "0.2.0",
   "description": "autelis plugin for homebridge",
   "license": "ISC",
   "keywords": [
-    "autelis-homebridge-plugin"
+    "homebridge-plugin"
   ],
   "engines": {
     "node": ">=0.12.0",
@@ -14,5 +14,18 @@
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
-  }
+  },
+  "dependencies": {
+    "homebridge": "^0.4.50",
+    "xml-js": "^1.6.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnwest80/homebridge-thermostat.git"
+  },
+  "author": "John West",
+  "bugs": {
+    "url": "https://github.com/johnwest80/homebridge-thermostat/issues"
+  },
+  "homepage": "https://github.com/johnwest80/homebridge-thermostat#readme"
 }
