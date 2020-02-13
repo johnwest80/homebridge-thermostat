@@ -1,5 +1,6 @@
 var Service, Characteristic;
 var request = require("request");
+var convert = require('xml-js');
 
 module.exports = function(homebridge){
   Service = homebridge.hap.Service;
@@ -67,42 +68,43 @@ Thermostat.prototype = {
           });
   },
 
-	getCurrentHeatingCoolingState: function(callback) {
-    this.log("[+] getCurrentHeatingCoolingState from:", this.apiroute+"/status");
-    var url = this.apiroute+"/status";
+  getParsedObject(xml) {
+    return JSON.parse(convert.xml2json(xml, {compact: true, spaces: 4})).response;
+  },
+
+  convertToCelsius(value) {
+    return (value - 32) * 5 / 9;
+  },
+
+  convertToFarhenheit(value) {
+    return value * 9 / 5 + 32;
+  },
+
+  getStatus(callback, success) {
+    var url = this.apiroute+"/status.xml?timestamp=" + Date.now();
     this._httpRequest(url, '', 'GET', function (error, response, responseBody) {
         if (error) {
-          this.log("[!] Error getting currentHeatingCoolingState: %s", error.message);
+          this.log("[!] Error getting currentTemperature: %s", error.message);
   				callback(error);
         } else if ( response.statusCode >= 300 ) {
-            this.log("[!] Error getting currentHeatingCoolingState: %d - %s", response.statusCode, response.statusMessage);
+            this.log("[!] Error getting currentTemperature: %d - %s", response.statusCode, response.statusMessage);
             callback(response.statusCode);
         } else {
-          var json = JSON.parse(responseBody);
-          this.log("[*] currentHeatingCoolingState: %s", json.currentHeatingCoolingState);
-          this.currentHeatingCoolingState = json.currentHeatingCoolingState;
-          callback(null, this.currentHeatingCoolingState);
+          success(this.getParsedObject(responseBody));
         }
     }.bind(this));
+  },
+
+	getCurrentHeatingCoolingState: function(callback) {
+    this.getTargetHeatingCoolingState(callback);
 	},
 
   getTargetHeatingCoolingState: function(callback) {
-    this.log("[+] getTargerHeatingCoolingState from:", this.apiroute+"/status");
-    var url = this.apiroute+"/status";
-    this._httpRequest(url, '', 'GET', function (error, response, responseBody) {
-        if (error) {
-          this.log("[!] Error getting targetHeatingCoolingState: %s", error.message);
-  				callback(error);
-        } else if ( response.statusCode >= 300 ) {
-            this.log("[!] Error getting targetHeatingCoolingState: %d - %s", response.statusCode, response.statusMessage);
-            callback(response.statusCode);
-        } else {
-          var json = JSON.parse(responseBody);
-          this.log("[*] targetHeatingCoolingState: %s", json.targetHeatingCoolingState);
-          this.targetHeatingCoolingState = json.targetHeatingCoolingState;
-          callback(null, this.targetHeatingCoolingState);
-        }
-    }.bind(this));
+    this.getStatus(callback, (json) => {
+      this.targetHeatingCoolingState = json.equipment.spa._text === '1' ? 1 : 0;
+      this.log("[*] targetHeatingCoolingState: %s", this.targetHeatingCoolingState);
+      callback(null, this.targetHeatingCoolingState);
+    })
   },
 
   setTargetHeatingCoolingState: function(value, callback) {
@@ -124,46 +126,24 @@ Thermostat.prototype = {
   },
 
   getCurrentTemperature: function(callback) {
-    this.log("[+] getCurrentTemperature from:", this.apiroute+"/status");
-    var url = this.apiroute+"/status";
-    this._httpRequest(url, '', 'GET', function (error, response, responseBody) {
-        if (error) {
-          this.log("[!] Error getting currentTemperature: %s", error.message);
-  				callback(error);
-        } else if ( response.statusCode >= 300 ) {
-            this.log("[!] Error getting currentTemperature: %d - %s", response.statusCode, response.statusMessage);
-            callback(response.statusCode);
-        } else {
-  				var json = JSON.parse(responseBody);
-          this.currentTemperature = parseFloat(json.currentTemperature);
-          this.log("[*] currentTemperature: %s", json.currentTemperature);
-  				callback(null, this.currentTemperature);
-        }
-    }.bind(this));
+    this.getStatus(callback, (json) => {
+      this.currentTemperature = this.convertToCelsius(parseFloat(json.temp.spatemp._text));
+      this.log("[*] currentTemperature: %s", this.currentTemperature);
+      callback(null, this.currentTemperature);
+    })
   },
 
   getTargetTemperature: function(callback) {
-    this.log("[+] getTargetTemperature from:", this.apiroute+"/status");
-    var url = this.apiroute+"/status";
-    this._httpRequest(url, '', 'GET', function (error, response, responseBody) {
-        if (error) {
-          this.log("[!] Error getting targetTemperature: %s", error.message);
-  				callback(error);
-        } else if ( response.statusCode >= 300 ) {
-            this.log("[!] Error getting targetTemperature: %d - %s", response.statusCode, response.statusMessage);
-            callback(response.statusCode);
-        } else {
-  				var json = JSON.parse(responseBody);
-  				this.targetTemperature = parseFloat(json.targetTemperature);
-  				this.log("[*] targetTemperature: %s", this.targetTemperature);
-  				callback(null, this.targetTemperature);
-        }
-    }.bind(this));
+    this.getStatus(callback, (json) => {
+      this.targetTemperature = this.convertToCelsius(parseFloat(json.temp.spasp._text)) + .25;
+      this.log("[*] targetTemperature: %s", this.targetTemperature);
+      callback(null, this.targetTemperature);
+    })
   },
 
   setTargetTemperature: function(value, callback) {
     this.log("[+] setTargetTemperature from %s to %s", this.targetTemperature, value);
-    var url = this.apiroute+"/targetTemperature/"+value;
+    var url = this.apiroute+"/set.cgi?wait=1&name=spasp&temp="+this.convertToFarhenheit(value + .25)+"&timestamp=" + Date.now();
     this._httpRequest(url, '', 'GET', function (error, response, responseBody) {
         if (error) {
           this.log("[!] Error setting targetTemperature", error.message);
@@ -234,7 +214,7 @@ Thermostat.prototype = {
   },
 
 	getTemperatureDisplayUnits: function(callback) {
-		//this.log("getTemperatureDisplayUnits:", this.temperatureDisplayUnits);
+		this.log("getTemperatureDisplayUnits:", this.temperatureDisplayUnits);
 		callback(null, this.temperatureDisplayUnits);
 	},
 

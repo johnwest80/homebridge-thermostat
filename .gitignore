@@ -1,1 +1,6 @@
 node_modules/
+config.json
+.vscode/launch.json
+accessories/cachedAccessories
+persist
+.gitignore
